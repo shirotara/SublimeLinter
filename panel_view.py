@@ -202,7 +202,7 @@ class UpdateState(sublime_plugin.EventListener):
                 'cursor': cursor
             })
             if panel_is_active(active_view.window()):
-                update_panel_selection(**State)
+                update_panel_selection (**State)
 
     def on_pre_close(self, view):
         window = view.window()
