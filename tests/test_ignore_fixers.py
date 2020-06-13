@@ -1,7 +1,7 @@
 import sublime
 
 from unittesting import DeferrableTestCase
-from SublimeLinter.tests.mockito import unstub, when
+from SublimeLinter.tests.mockito import unstub
 from SublimeLinter.tests.parameterized import parameterized as p
 
 
