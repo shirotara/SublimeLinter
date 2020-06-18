@@ -303,19 +303,29 @@ class sublime_linter_panel_commit(sublime_plugin.TextCommand):
         s = view.sel()[0]
         cursor = s.b
         cursor_at_eol = view.line(cursor).b
-        regions = view.find_by_selector("meta.line-col.sublime_linter")
-        for r in reversed(regions):
-            if r.a < cursor_at_eol:
-                break
-        else:
+
+        try:
+            fname, region = read_selector_just_before_pt(view, "entity.name.filename", cursor_at_eol)
+        except TypeError:
             print("Error: No visual error found.")
             return
 
-        li, co = map(int, view.substr(r).split(":"))
+        if region.a <= cursor_at_eol <= region.b + 1:
+            cursor_at_eol = view.line(cursor_at_eol + 1).b  # next line
+
+        try:
+            line_col, _ = read_selector_just_before_pt(view, "meta.line-col", cursor_at_eol)
+        except TypeError:
+            print("Error: No visual error found.")
+            return
+
+        fname = fname.replace("\\", "/")
+        li, co = map(int, line_col.split(":"))
+
         print("got li, co", li, co)
         for res in view.find_all_results():
             file, line, column = res
-            if (line, column) == (li, co):
+            if file.endswith(fname) and (line, column) == (li, co):
                 break
         else:
             print("Error: No matching result found.")
@@ -324,6 +334,18 @@ class sublime_linter_panel_commit(sublime_plugin.TextCommand):
         forget_view_state(view)
         open_location(window, file, line, column)
         window.run_command("sublime_linter_panel_toggle")
+
+
+def read_selector_just_before_pt(view, selector, pt):
+    # type: (sublime.View, str, int) -> Optional[Tuple[str, sublime.Region]]
+    return next(
+        (
+            (view.substr(r), r)
+            for r in reversed(view.find_by_selector(selector))
+            if r.a <= pt
+        ),
+        None
+    )
 
 
 class sublime_linter_panel_next(sublime_plugin.TextCommand):
