@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import lru_cache, partial
 from itertools import chain
 import os
@@ -14,8 +14,8 @@ flatten = chain.from_iterable
 MYPY = False
 if MYPY:
     from typing import (
-        Any, Callable, Collection, Dict, Iterable, List, Optional, Set,
-        Tuple, TypeVar, Union
+        Any, Callable, Collection, Dict, Iterable, List, NamedTuple,
+        Optional, Set, Tuple, TypeVar, Union
     )
     from mypy_extensions import TypedDict
     from .lint.persist import LintError
@@ -39,6 +39,12 @@ if MYPY:
         'nearby_lines': Union[int, List[int]]
     }, total=False)
     Action = Callable[[], None]
+
+    TextRange = NamedTuple("TextRange", [("text", str), ("range", sublime.Region)])
+    Location = NamedTuple("Location", [("filename", FileName), ("line", int), ("column", int)])
+else:
+    TextRange = namedtuple("TextRange", "text range")
+    Location = namedtuple("Location", "filename line column")
 
 
 PANEL_NAME = "SublimeLinter"
@@ -300,49 +306,99 @@ class sublime_linter_panel_commit(sublime_plugin.TextCommand):
             window.run_command("sublime_linter_panel_toggle")
             return
 
-        s = view.sel()[0]
-        cursor = s.b
-        cursor_at_eol = view.line(cursor).b
-
-        try:
-            fname, region = read_selector_just_before_pt(view, "entity.name.filename", cursor_at_eol)
-        except TypeError:
+        loc = read_current_location(view, view.sel()[0])
+        if loc is None:
             print("Error: No visual error found.")
-            return
-
-        if region.a <= cursor_at_eol <= region.b + 1:
-            cursor_at_eol = view.line(cursor_at_eol + 1).b  # next line
-
-        try:
-            line_col, _ = read_selector_just_before_pt(view, "meta.line-col", cursor_at_eol)
-        except TypeError:
-            print("Error: No visual error found.")
-            return
-
-        fname = fname.replace("\\", "/")
-        li, co = map(int, line_col.split(":"))
-
-        print("got li, co", li, co)
-        for res in view.find_all_results():
-            file, line, column = res
-            if file.endswith(fname) and (line, column) == (li, co):
-                break
-        else:
-            print("Error: No matching result found.")
             return
 
         forget_view_state(view)
-        open_location(window, file, line, column)
+        open_location(window, *loc)
         window.run_command("sublime_linter_panel_toggle")
 
 
+def read_current_location(view, sel):
+    # type: (sublime.View, sublime.Region) -> Optional[Location]
+    cursor = sel.b
+    cursor_at_eol = view.line(cursor).b
+
+    fname = read_selector_just_before_pt(view, "entity.name.filename", cursor_at_eol)
+    if fname is None:
+        return None
+
+    if fname.range.a <= cursor_at_eol <= fname.range.b + 1:
+        cursor_at_eol = view.line(cursor_at_eol + 1).b  # next line
+
+    line_col = read_selector_just_before_pt(view, "meta.line-col", cursor_at_eol)
+    if line_col is None:
+        return None
+
+    filename = os.path.join(view.settings().get("result_base_dir") or "", fname.text)
+    if line_col.range.a < fname.range.a:  # Clean file, user is on NO_RESULTS_MESSAGE
+        return Location(filename, -1, -1)
+
+    li, co = map(int, line_col.text.split(":"))
+    return Location(filename, li, co)
+
+
+def next_location(view, sel):
+    # type: (sublime.View, sublime.Region) -> Optional[Location]
+    cursor = sel.b
+    cursor_at_eol = view.line(cursor).b
+    line_col = read_selector_just_after_pt(view, "meta.line-col", cursor_at_eol)
+    if line_col is None:
+        return None
+
+    fname = read_selector_just_before_pt(view, "entity.name.filename", line_col.range.a)
+    if fname is None:
+        return None
+
+    filename = os.path.join(view.settings().get("result_base_dir") or "", fname.text)
+    li, co = map(int, line_col.text.split(":"))
+    return Location(filename, li, co)
+
+
+def previous_location(view, sel):
+    # type: (sublime.View, sublime.Region) -> Optional[Location]
+    cursor = sel.b
+    cursor_at_bol = view.line(cursor).a
+    line_col = read_selector_just_before_pt(view, "meta.line-col", cursor_at_bol)
+    if line_col is None:
+        return None
+
+    if view.match_selector(cursor_at_bol, "markup.quote.linter-message"):
+        # go up twice
+        line_col = read_selector_just_before_pt(view, "meta.line-col", line_col.range.a)
+        if line_col is None:
+            return None
+
+    fname = read_selector_just_before_pt(view, "entity.name.filename", line_col.range.a)
+    if fname is None:
+        return None
+
+    filename = os.path.join(view.settings().get("result_base_dir") or "", fname.text)
+    li, co = map(int, line_col.text.split(":"))
+    return Location(filename, li, co)
+
+
 def read_selector_just_before_pt(view, selector, pt):
-    # type: (sublime.View, str, int) -> Optional[Tuple[str, sublime.Region]]
+    # type: (sublime.View, str, int) -> Optional[TextRange]
     return next(
         (
-            (view.substr(r), r)
+            TextRange(view.substr(r), r)
             for r in reversed(view.find_by_selector(selector))
-            if r.a <= pt
+            if r.a < pt
+        ),
+        None
+    )
+
+
+def read_selector_just_after_pt(view, selector, pt):
+    # type: (sublime.View, str, int) -> Optional[TextRange]
+    return next(
+        (
+            TextRange(view.substr(r), r)
+            for r in view.find_by_selector(selector)
+            if r.a > pt
         ),
         None
     )
