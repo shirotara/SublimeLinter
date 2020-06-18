@@ -227,7 +227,8 @@ class UpdateState(sublime_plugin.EventListener):
 
     def on_post_window_command(self, window, command_name, args):
         if command_name == 'hide_panel':
-            restore_view_state(get_panel(window))
+            if args.get("cancel", False):
+                restore_view_state(get_panel(window))
             State['panel_opened_automatically'].discard(window.id())
             stop_viewport_poller()
             return
@@ -288,10 +289,26 @@ def toggle_panel_if_errors(window, filenames):
 
 class sublime_linter_panel_toggle(sublime_plugin.WindowCommand):
     def run(self, focus=False):
-        if panel_is_active(self.window) and not focus:
+        is_active = panel_is_active(self.window)
+        if is_active and not focus:
             self.window.run_command("hide_panel", {"panel": OUTPUT_PANEL})
         else:
             self.window.run_command("show_panel", {"panel": OUTPUT_PANEL, "focus": focus})
+            panel = get_panel(self.window)
+            if panel:
+                panel.settings().set("sl_quick_panel_mode", is_active)
+
+
+class sublime_linter_panel_cancel(sublime_plugin.TextCommand):
+    def run(self, edit):
+        # type: (sublime.Edit) -> None
+        view = self.view
+        window = view.window()
+        assert window
+        restore_view_state(get_panel(window))
+
+        view.settings().set("sl_quick_panel_mode", False)
+        force_focus_active_view(window)
 
 
 class sublime_linter_panel_commit(sublime_plugin.TextCommand):
@@ -303,7 +320,11 @@ class sublime_linter_panel_commit(sublime_plugin.TextCommand):
 
         if len(view.sel()) != 1:
             print("No cursor, or multiple. Return")
-            window.run_command("sublime_linter_panel_toggle")
+            if view.settings().get("sl_quick_panel_mode"):
+                view.settings().set("sl_quick_panel_mode", False)
+                force_focus_active_view(window)
+            else:
+                window.run_command("sublime_linter_panel_toggle")
             return
 
         loc = read_current_location(view, view.sel()[0])
@@ -312,8 +333,20 @@ class sublime_linter_panel_commit(sublime_plugin.TextCommand):
             return
 
         forget_view_state(view)
-        open_location(window, *loc)
-        window.run_command("sublime_linter_panel_toggle")
+        if view.settings().get("sl_quick_panel_mode"):
+            view.settings().set("sl_quick_panel_mode", False)
+            force_focus_active_view(window)
+        else:
+            open_location(window, *loc)
+            window.run_command("sublime_linter_panel_toggle")
+
+
+def force_focus_active_view(window):
+    active_group = window.active_group()
+    active_view = window.active_view()
+    assert active_view
+    window.focus_group(active_group)
+    window.focus_view(active_view)
 
 
 def read_current_location(view, sel):

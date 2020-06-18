@@ -3,21 +3,33 @@
         "keys": ["enter"],
         "command": "sublime_linter_panel_commit",
         "context": [
-            { "key": "setting.sl_error_panel" },
+            { "key": "panel", "operand": "output.SublimeLinter" },
+            { "key": "panel_has_focus" },
+        ]
+    },
+    {
+        "keys": ["escape"],
+        "command": "sublime_linter_panel_cancel",
+        "context": [
+            { "key": "panel", "operand": "output.SublimeLinter" },
+            { "key": "panel_has_focus" },
+            { "key": "setting.sl_quick_panel_mode" }
         ]
     },
     {
         "keys": ["down"],
         "command": "sublime_linter_panel_next",
         "context": [
-            { "key": "setting.sl_error_panel" },
+            { "key": "panel", "operand": "output.SublimeLinter" },
+            { "key": "panel_has_focus" },
         ]
     },
     {
         "keys": ["up"],
         "command": "sublime_linter_panel_previous",
         "context": [
-            { "key": "setting.sl_error_panel" },
+            { "key": "panel", "operand": "output.SublimeLinter" },
+            { "key": "panel_has_focus" },
         ]
     },
 ]

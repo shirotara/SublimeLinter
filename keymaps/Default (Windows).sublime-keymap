@@ -16,7 +16,7 @@
     },
     { "keys": ["ctrl+k", "p"], "command": "sublime_linter_goto_error",
       "args": { "direction": "previous" }
-    }
+    },
     // Supported args:
     // * direction: "previous" or "next"
     // * count:     How many errors to jump. Defaults to 1.
@@ -27,4 +27,21 @@
     // { "keys": ["ctrl+k", "ctrl+k"],
     //   "command": "sublime_linter_toggle_highlights"
     // },
+
+    // Focus the error panel
+    {
+        "keys": ["ctrl+k", "ctrl+s"],
+        "command": "sublime_linter_panel_toggle",
+        "args": {"focus": true}
+    },
+    {
+        "keys": ["ctrl+k", "ctrl+s"],
+        "command": "sublime_linter_panel_toggle",
+        "context": [
+            { "key": "panel", "operand": "output.SublimeLinter" },
+            { "key": "panel_has_focus" }
+        ]
+    },
+
+
 ]
