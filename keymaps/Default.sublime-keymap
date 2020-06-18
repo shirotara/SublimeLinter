@@ -1,0 +1,23 @@
+[
+    {
+        "keys": ["enter"],
+        "command": "sublime_linter_panel_commit",
+        "context": [
+            { "key": "setting.sl_error_panel" },
+        ]
+    },
+    {
+        "keys": ["down"],
+        "command": "sublime_linter_panel_next",
+        "context": [
+            { "key": "setting.sl_error_panel" },
+        ]
+    },
+    {
+        "keys": ["up"],
+        "command": "sublime_linter_panel_previous",
+        "context": [
+            { "key": "setting.sl_error_panel" },
+        ]
+    },
+]
